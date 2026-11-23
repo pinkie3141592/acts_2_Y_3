@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A* vs búsqueda no informada</title>
+<style>
+:root{--bg:#fafaf8;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--bd:#d9d9d3;--wall:#2b2b2a;--closed:#9fd3cf;--open:#f2c14e;--path:#2e9e5b;--start:#2f6fdb;--goal:#d64545;--cell:#f0f0ec;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171716;--fg:#ececE8;--mut:#9a9a94;--card:#222221;--bd:#3a3a38;--wall:#0b0b0b;--closed:#2f6b68;--open:#b88a1d;--path:#3ec47a;--start:#5b93f0;--goal:#ef6a6a;--cell:#2a2a28}}
+:root[data-theme="dark"]{--bg:#171716;--fg:#ececE8;--mut:#9a9a94;--card:#222221;--bd:#3a3a38;--wall:#0b0b0b;--closed:#2f6b68;--open:#b88a1d;--path:#3ec47a;--start:#5b93f0;--goal:#ef6a6a;--cell:#2a2a28}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 4px}p{margin:4px 0;color:var(--mut)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--fg)}
+.grid{display:flex;flex-wrap:wrap;gap:16px}
+.pane{flex:1 1 340px;min-width:0;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}
+.pane h2{font-size:16px;margin:0 0 6px}
+canvas{width:100%;height:auto;display:block;border-radius:6px;cursor:crosshair;touch-action:none}
+.st{font-variant-numeric:tabular-nums;margin-top:8px;font-size:14px}
+.log{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--mut);min-height:20px}
+.lg{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mut);margin-top:8px}
+.lg i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.note{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-top:16px}
+</style>
+</head>
+<body>
+<h1>A* vs búsqueda no informada (BFS)</h1>
+<p>Mismo laberinto, mismo inicio y meta. Dibuja o borra muros con clic o arrastrando sobre cualquier cuadrícula.</p>
+<div class="bar">
+<button id="step">Paso ▸</button>
+<button id="play">▶ Auto</button>
+<button id="reset">Reiniciar</button>
+<button id="u">Muro en U</button>
+<button id="rnd">Muros aleatorios</button>
+<button id="clr">Limpiar muros</button>
+<label>Velocidad <input id="sp" type="range" min="1" max="10" value="5"></label>
+</div>
+<div class="grid">
+<div class="pane"><h2>A* — f(n) = g(n) + h(n)</h2><canvas id="c0" width="672" height="392"></canvas>
+<div class="log" id="l0">—</div><div class="st" id="s0"></div></div>
+<div class="pane"><h2>No informada — f(n) = g(n) (BFS)</h2><canvas id="c1" width="672" height="392"></canvas>
+<div class="log" id="l1">—</div><div class="st" id="s1"></div></div>
+</div>
+<div class="lg">
+<span><i style="background:var(--start)"></i>Inicio</span><span><i style="background:var(--goal)"></i>Meta</span>
+<span><i style="background:var(--open)"></i>Frontera (con su f)</span><span><i style="background:var(--closed)"></i>Explorado</span>
+<span><i style="background:var(--path)"></i>Camino final</span><span><i style="background:var(--wall)"></i>Muro</span>
+</div>
+<div class="note"><b>Heurística:</b> distancia Manhattan h(n) = |x − x<sub>meta</sub>| + |y − y<sub>meta</sub>|. Es admisible porque con movimiento en 4 direcciones y costo 1 por paso, ningún camino real puede ser más corto que ese número de pasos (los muros solo pueden alargarlo). Al no sobreestimar, A* garantiza el camino óptimo. Además es consistente, así que ningún nodo se expande más de una vez.</div>
+<script>
+const C=24,R=14,K=28,S=[2,7],G=[21,7];
+const id=(x,y)=>y*C+x,sI=id(...S),gI=id(...G);
+let walls=new Set(),timer=null;
+const h=(i)=>Math.abs(i%C-G[0])+Math.abs(Math.floor(i/C)-G[1]);
+function mk(useH){return{useH,open:[sI],g:{[sI]:0},par:{},closed:new Set(),done:false,found:false,path:[],last:null,n:0}}
+let A=[mk(true),mk(false)];
+const f=(a,i)=>a.g[i]+(a.useH?h(i):0);
+function step(a){
+ if(a.done)return;
+ if(!a.open.length){a.done=true;return}
+ let b=0;
+ for(let k=1;k<a.open.length;k++){const p=a.open[k],q=a.open[b];
+  if(f(a,p)<f(a,q)||(f(a,p)===f(a,q)&&h(p)<h(q)))b=k}
+ const cur=a.open.splice(b,1)[0];
+ a.closed.add(cur);a.last=cur;a.n++;
+ if(cur===gI){a.done=a.found=true;let p=cur;while(p!==undefined){a.path.push(p);p=a.par[p]}return}
+ const x=cur%C,y=Math.floor(cur/C);
+ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){
+  const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=C||ny>=R)continue;
+  const n=id(nx,ny);if(walls.has(n)||a.closed.has(n))continue;
+  const ng=a.g[cur]+1;
+  if(a.g[n]===undefined||ng<a.g[n]){a.g[n]=ng;a.par[n]=cur;if(!a.open.includes(n))a.open.push(n)}
+ }
+}
+const v=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function draw(k){
+ const a=A[k],cv=document.getElementById('c'+k),c=cv.getContext('2d');
+ c.clearRect(0,0,cv.width,cv.height);
+ const col={cell:v('--cell'),wall:v('--wall'),closed:v('--closed'),open:v('--open'),path:v('--path'),start:v('--start'),goal:v('--goal'),fg:v('--fg')};
+ const pathSet=new Set(a.path);
+ for(let i=0;i<C*R;i++){
+  const x=i%C,y=Math.floor(i/C);
+  c.fillStyle=walls.has(i)?col.wall:pathSet.has(i)?col.path:a.open.includes(i)?col.open:a.closed.has(i)?col.closed:col.cell;
+  if(i===sI)c.fillStyle=col.start;if(i===gI)c.fillStyle=col.goal;
+  c.fillRect(x*K+1,y*K+1,K-2,K-2);
+  if(a.open.includes(i)&&i!==gI){c.fillStyle='#111';c.font='10px system-ui';c.textAlign='center';c.fillText(f(a,i),x*K+K/2,y*K+K/2+4)}
+ }
+ if(a.last!==null){c.strokeStyle=col.fg;c.lineWidth=2;c.strokeRect((a.last%C)*K+2,Math.floor(a.last/C)*K+2,K-4,K-4)}
+ const l=document.getElementById('l'+k);
+ if(a.last!==null){const i=a.last;l.textContent=`Expande (${i%C},${Math.floor(i/C)}): g=${a.g[i]}, h=${a.useH?h(i):'—'}, f=${f(a,i)}`}else l.textContent='—';
+ document.getElementById('s'+k).textContent=`Nodos expandidos: ${a.n} · Frontera: ${a.open.length} · `+(a.found?`Camino: ${a.path.length-1} pasos`:a.done?'Sin camino':'Buscando…');
+}
+const all=()=>{draw(0);draw(1)};
+function tick(){A.forEach(step);all();if(A[0].done&&A[1].done)stop()}
+function stop(){clearInterval(timer);timer=null;play.textContent='▶ Auto'}
+function reset(){stop();A=[mk(true),mk(false)];all()}
+const play=document.getElementById('play');
+play.onclick=()=>{if(timer)return stop();play.textContent='⏸ Pausa';timer=setInterval(tick,1100-sp.value*100)};
+sp.oninput=()=>{if(timer){clearInterval(timer);timer=setInterval(tick,1100-sp.value*100)}};
+document.getElementById('step').onclick=tick;
+document.getElementById('reset').onclick=reset;
+document.getElementById('clr').onclick=()=>{walls.clear();reset()};
+document.getElementById('u').onclick=()=>{walls.clear();for(let y=3;y<=11;y++)walls.add(id(12,y));for(let x=8;x<=12;x++){walls.add(id(x,3));walls.add(id(x,11))}reset()};
+document.getElementById('rnd').onclick=()=>{walls.clear();for(let i=0;i<C*R;i++)if(i!==sI&&i!==gI&&Math.random()<.25)walls.add(i);reset()};
+let painting=null;
+function cellAt(e,cv){const r=cv.getBoundingClientRect();const x=Math.floor((e.clientX-r.left)/r.width*C),y=Math.floor((e.clientY-r.top)/r.height*R);return x>=0&&y>=0&&x<C&&y<R?id(x,y):null}
+function paint(e,cv){const i=cellAt(e,cv);if(i===null||i===sI||i===gI)return;
+ if(painting)walls.add(i);else walls.delete(i);reset()}
+[0,1].forEach(k=>{const cv=document.getElementById('c'+k);
+ cv.onpointerdown=e=>{const i=cellAt(e,cv);if(i===null)return;painting=!walls.has(i);cv.setPointerCapture(e.pointerId);paint(e,cv)};
+ cv.onpointermove=e=>{if(painting!==null)paint(e,cv)};
+ cv.onpointerup=()=>painting=null});
+document.getElementById('u').click();
+</script>
+</body>
+</html>
