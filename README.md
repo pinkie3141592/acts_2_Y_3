@@ -93,8 +93,3 @@ Ambos algoritmos encuentran un camino de la misma longitud, que es la óptima. L
 2. La frontera de A\* (con su valor `f` visible en cada celda) avanzando hacia la meta paso a paso.
 3. El mismo laberinto con BFS, para ver la diferencia en nodos explorados.
 4. El camino final resaltado y los contadores de nodos expandidos en los tres escenarios.
-
-## Referencias
-
-- Hart, P. E., Nilsson, N. J., Raphael, B. (1968). *A Formal Basis for the Heuristic Determination of Minimum Cost Paths*.
-- Russell, S., Norvig, P. *Artificial Intelligence: A Modern Approach*, capítulo de búsqueda informada.
